@@ -1,12 +1,27 @@
 echelon
 ===========
+originaly from:
+https://github.com/gen0cide-/echelon
 
-After reading RFC 3507, it didn't seem that hard to do this in Ruby. 
+i saw this nice server and modified it to be more easy to use but still not everything tested.
 
-Simple to use, run `./setup.sh full` as root or sudo on Ubuntu 11.04+. It will install the needed packages, setup ruby, and other time consuming tasks.
+the seturl works 100%
 
-After, check out the `setup/` directory for more information on getting Squid ready to use with echelon. Also check out `config/settings.yml` for more configuration information.
+but the addheader and setheader are not fully tested yet.
+
+still havn't got the time to look on the resmod method yet so it just for requests.
+
+will be added option for some db this or another.
+
+will be added the option to use an advaced request and response urls to match crytiria and apply different actions.
+
+problem that are known:
+the OPTIONS icap response is not fullty built so squid will show some warnings.
 
 When you are ready, simply `ruby echelon.rb config/settings.yml`
+or to deamonize `ruby echelon.rb config/settings.yml&`
+
+
+
 
   
