@@ -104,8 +104,10 @@ class Cache
 		if rs !=nil
 			result = rs.fetch_row 
 			rs.free
+			dbh.close
 			return result[0] 
 		end
+		dbh.close
 		return nil
 		
 		#more_results?

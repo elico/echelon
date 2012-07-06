@@ -35,7 +35,7 @@ class Filtering
 	def bdomain(dom)
 		status = 0
 		dom = dom.reverse
-		tld = dom.match(/([a-zA-Z\-\_]+\.[a-zA-Z\-\_]+)(\.|.*)/)[1]
+		tld = dom.match(/([a-zA-Z0-9\-\_]+\.[a-zA-Z0-9\-\_]+)(\.|.*)/)[1]
 		db = connect
 		statement = db.prepare "SELECT dom FROM filter WHERE dom like ?"
 		tld = tld + "%"
