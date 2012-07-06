@@ -3,6 +3,8 @@
 
 #sample video url
 #http://av.vimeo.com/80828/891/102736782.mp4?aksessionid=117a13fdfd841d996f3c3fca570cadab&token=1339771402_ddf4d971382dd0501fc8273446652d71
+#http://o-o.preferred.bezeq-tlv1.v22.lscache8.c.youtube.com/videoplayback?upn=sZjnawryR0s&sparams=algorithm%2Cburst%2Ccp%2Cfactor%2Cid%2Cip%2Cipbits%2Citag%2Csource%2Cupn%2Cexpire&fexp=906717%2C914062%2C904825%2C907217%2C907335%2C921602%2C919306%2C922600%2C919316%2C920704%2C924500%2C924700%2C913542%2C919324%2C920706%2C907344%2C912706%2C902518&mt=1341535696&ms=au&algorithm=throttle-factor&itag=5&ip=109.0.0.0&burst=40&sver=3&signature=9C5478A96238A22C16CBA7B5CDFA76C3748A2597.AEAA0A86C32829350AC2DA80FA0611FD7B32943A&source=youtube&expire=1341557093&key=yt1&ipbits=8&factor=1.25&cp=U0hTRlVQVV9OTUNOM19NSllBOlU4SHJ1STdPWkda&id=5e46d00c2860997f
+
 class Cache
 	def initialize
 	@host = "localhost"

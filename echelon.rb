@@ -1,25 +1,59 @@
-#!/usr/bin/env ruby
+#!/usr/bin/ruby
 # ---------------------------------------------------------------------------------------
 # Echelon
 # ICAP Prototype Server
 # - By Alex Levinson
 # - May 25th, 2012
 # ---------------------------------------------------------------------------------------
+require 'rubygems'
+require 'dbi'
+require 'mysql'
+#require 'sqlite3'
+
+
 require 'bundler'
 require 'syslog'
 require 'settingslogic'
 Bundler.require(:icap)
 
+
+
+#insert here all the instance variables for the software.
+require './filter.rb'
+require './cache_mysql.rb'
+$domcheck = Filtering.new	
+$cache = Cache.new
+
 # ---------------------------------------------------------------------------------------
+
+
 class Settings < Settingslogic
-  source "#{ARGV[0]}"
-  load!
+  if ARGV.size == 0
+  	  if File.exist?"./config/settings.yml" 
+	  puts "default setttings is being used"
+	  puts "./config/settings.yml"
+	  source "./config/settings.yml"
+	  load!
+	else
+	  puts "no settings file was defined in the start command"
+	  puts "or exists in the default directory"
+	  exit 1
+	end
+  else
+    puts "using config file: " + ARGV[0]
+    source "#{ARGV[0]}"
+    load!
+  end
 end
 # ---------------------------------------------------------------------------------------
 class Echelon < EM::Connection
+
+
 @debug = (Settings.debug == 1)
-@request = { "Request" =>{}, "Headers" => {} }
+@request = { "Request" =>{}, "Headers" => [] }
 @resp = ""
+
+
   def post_init
     cleanup
   end
@@ -49,18 +83,17 @@ class Echelon < EM::Connection
 	  @data = @data[pos+4..@data.size-1]
 	  log(@data) if @debug
     end
-#	log(@icap_header)
-#	log(@data)
+	log(@icap_header) if @debug
+
 	log("Starting case") if @debug 
     case @icap_header[:mode]
     when 'OPTIONS'
       log("OPTIONS case")  if @debug 
-	  #method = @icap_header[:path] == '/request' ?  'RESPMOD' : 'REQMOD'
-      send_data("ICAP/1.0 200 OK\r\nMethods: REQMOD\r\nISTag: \"Echelon-mod-0.1\"\r\nOptions-TTL: 30\r\nMax-Connections: 400\r\nAllow: 204\r\nPreview: 0\r\n\r\n")
+      send_data("ICAP/1.0 200 OK\r\nMethods: REQMOD\r\nISTag: \"Echelon-mod-0.1\"\r\nOptions-TTL: 30\r\nMax-Connections: 700\r\nAllow: 204\r\nPreview: 0\r\n\r\n")
       cleanup
     when 'REQMOD'
 	  log("REQMOD case")  if @debug
-	  orderdata
+	  orginizedata
 	  log(@request) if @debug
 		  case @request["Request"]["Method"]
 			when /(GET|HEAD)/
@@ -106,22 +139,75 @@ class Echelon < EM::Connection
 # returns the full url of the request as a string
 ###
 
+ #http://i4.ytimg.com/sb/gEqYVmM941I/storyboard3_L2/M2.jpg?sigh=YM3vUDg0_555oIdiL5AlOYdwors
 
 
+case
+when (@icap_header[:path].include? "cache") 
+	case 
+
+	when (geturl.match(/http:\/\/.*\.c\.youtube\.com\/videoplayback\?.*id\=.*/) )
 
 
+	when (geturl.match(/http:\/\/.*\.ytimg\.com\/vi\/.*/))
 
 
+	when ( geturl.match(/http:\/\/av\.vimeo.com\/\.*/) )
+
+	else
 
 
+	end
+
+when  ( @icap_header[:path].include? "vimeoexternal" )
+	vid = $cache.vimid(geturl)
+	$cache.setvid(geturl, "http://vimeo.squid.internal/" + vid,)
+	seturl("http://vimeo.squid.internal/" + vid) 
+
+when  ( @icap_header[:path].include? "ytimgexternal" )
+	vid = $cache.ytimg(geturl)
+	$cache.setvid(geturl, "http://ytimg.squid.internal/" + vid,)
+	seturl("http://ytimg.squid.internal/" + vid)
+
+when  ( @icap_header[:path].include? "vimeointernal" )
+	log("vimeo internal") if @debug
+	url = $cache.geturl(geturl)
+	log(url)
+	seturl(url) if url != nil
+
+when  ( @icap_header[:path].include? "ytimginternal" )
+	log("ytimg internal") if @debug
+	url =  $cache.geturl(geturl)
+	log(url)
+	seturl(url) if url != nil
+
+when  ( @icap_header[:path].include? "smpfilter" )
+    log("basic filter check") if @debug
+	log(geturl) if @debug
+	test = $domcheck.bdomain(gethost)
+	log("level is: " + test.to_s)
+ 	set302("http://www1.ngtech.co.il/302porn.html") if  test != 0
+	puts $domcheck.domain(gethost) if @debug
+
+when ( @icap_header[:path].include? "redirect" )
+	log("302") if @debug
+	set302("http://www1.ngtech.co.il/302.html")
+else
+
+end
 
 
 
 #####################################################
-			 if @data_status  == 1
+			 case
+				when (@data_status  == 1)
 				log("Request was changed") if @debug
 				log(@request) if @debug
 				preresp 
+				log(@request) if @debug
+				send_data(compreq)
+				when (@data_status == 2)
+				log("Request was changed to 302 response") if @debug
 				log(@request) if @debug
 				send_data(compresp)
 			else
@@ -161,16 +247,17 @@ class Echelon < EM::Connection
       :path => "", 
       :hdr  => {}
     }
-	@request = { "Request" =>{}, "Headers" => {} }
+	@request = { "Request" =>{}, "Headers" => [] }
 	@resp = ""
   end
 
-  def orderdata
-	  req_raw     = @data.dup.split(/\r\n/)
+  def orginizedata
+	  req_raw  = @data.dup.split(/\r\n/)
 	  @request["Request"] = parserequest(req_raw[0])
       req_raw[1..-1].each do |line|
-        line.scan(/([^:]+): (.+)/).each do |field|
-    	 @request["Headers"][field[0]] = field[1]
+        line.scan(/([^:]+): (.+)/).each do |h,c|
+    	 @request["Headers"] <<  h
+		 @request["Headers"] <<  c
 	    end
 	  end
   end
@@ -185,7 +272,7 @@ class Echelon < EM::Connection
   end
   
   
-  def compresp
+  def compreq
  	#about the icap format:
 	#the icap headers separated from the the response header with a clean line "\r\n"
 	#the response header \end of the message ended with double clean lines "'\r\n\r\n"
@@ -198,67 +285,96 @@ class Echelon < EM::Connection
 	log("composing icap response") if @debug
 	return  ("ICAP/1.0 200 OK\r\nDate: #{Time.now.strftime("%a, %d %b %Y %X %Z")}\r\nServer: RubyICAP\r\nEncapsulated: req-hdr=0, null-body=#{@request.bytesize}\r\nConnection: close\r\n\r\n#{@request}")
   end
-  
- 
+   
+   def compresp
+ 	#about the icap format:
+	#the icap headers separated from the the response header with a clean line "\r\n"
+	#the response header \end of the message ended with double clean lines "'\r\n\r\n"
+	#
+	#
+	#
+	#
+	#  original compose
+	#response = "ICAP/1.0 200 OK\r\nDate: #{Time.now.strftime("%a, %d %b %Y %X %Z")}\r\nServer: RubyICAP\r\nConnection: close\r\nEncapsulated: req-hdr=0, null-body=#{@data.bytesize}\r\n\r\n#{@data}"
+	log("composing icap response") if @debug
+	return  ("ICAP/1.0 200 OK\r\nDate: #{Time.now.strftime("%a, %d %b %Y %X %Z")}\r\nServer: RubyICAP\r\nEncapsulated: res-hdr=0, null-body=#{@request.bytesize}\r\nConnection: close\r\n\r\n#{@request}")
+  end
+   
+  def set302(url)
+  @data_status = 2
+  @request = "HTTP/1.1 302 temporary redirect\r\nlocation: " + url + "\r\n\r\n"
+  end
   
   def seturl(url)
     @request["Request"]["Url"] = url
-	@request["Headers"]["Host"] = extracthost(url)
+	setheader("Host", extracthost(url) )
 	@data_status = 1
 	  
   end
  
- def geturl
-	return @request["Request"]["Url"] 
+	def geturl
+	 return @request["Request"]["Url"] 
+	end
+ 
+  def gethost
+	return getheader("Host")
   end
-  
 	def getheader(header)
-		if @request["Headers"][header]
-			return @request["Headers"][header] 
-		else
-			return "not exists"
+		index = 0
+		while index < @request["Headers"].size do
+			if @request["Headers"][index] == header
+				return @request["Headers"][index + 1]
+			end
+			index += 2
 		end
+		return "not exists"
     end
 	
 	def setheader(header,data)
-		if @request["Headers"][header]
-			@request["Headers"][header] = data
-			@data_status = 1
+		index = 0
+		while index < @request["Headers"].size do
+			if @request["Headers"][index] == header
+			@request["Headers"][index + 1] = data
 			return "changed"
-		else
+			end
+			index += 2
+			
+		end
 			return "not exists"
-		end
 	end
-	def addheader(header, data)
-		if @request["Headers"][header]
-			return "exists already"
-		else
-			@request["Headers"][header] = data
-			@data_status = 1
+	
+	def addheader(header, data)		
+			@request["Headers"]<< header
+			@request["Headers"]<< data
 			return "changed"
 		end
-	end
 	
 	  def preresp
 		key = "" 
 		key += @request["Request"]["Method"] + " " +  @request["Request"]["Url"] + " " +  @request["Request"]["Version"] + "\r\n"
-		@request["Headers"].each_key do |n|
-			key += n +": " + @request["Headers"][n] +"\r\n"
+		index = 0
+		while index < @request["Headers"].size do
+			key +=  @request["Headers"][index] + ": "
+			index += 1
+			key +=  @request["Headers"][index] + "\r\n"
+			index += 1
 		end
 		key += "\r\n\r\n"
 		@request = key
 	  end
 	
 	def parsereq(request)
-	
-		return request.scan(/(GET|POST|PUT)\ (http:\/\/.*)\ (.*)/)[0]
+		log (request)
+		return request.scan(/(GET|POST|PUT|HEAD)\ (http:\/\/.*)\ (.*)/)[0]
 	end
 	
 		def divideurl(url)
+		log(url)
 			return url.scan(/^(http:\/\/)([0-9a-zA-Z\.\-\_]+)(\/.*)/)[0]
 		end
 	
 	def extracthost(url)
+		log (url)
 		return divideurl(url)[1]
 	end
 	
@@ -270,35 +386,35 @@ class Echelon < EM::Connection
 		end	
 	end
 	
-	
-	
+
 end
+
+
 
 def log(msg)
 	Syslog.log(Syslog::LOG_ERR, "%s", msg)
 end
 
-
-
 def main
 	Syslog.open('Ruby_Icap', Syslog::LOG_PID)
 	log("Started")
-#	if (Settings.debug == 1)
+
 		Settings.each do |l| 
 		log(l)  
 		end
-#	end
-  puts "== Ruby ICAP Server Started =="
+	puts "== Ruby ICAP Server Started =="
+
 	EM.run do
-	  EM.start_server Settings.host, Settings.port, Echelon
-	if Settings.forks.size > 0
-    forks = Settings.forks.to_i
-    puts "... forking #{forks} times => #{2**forks} instances"
-    forks.times { fork }
+		EM.start_server Settings.host, Settings.port, Echelon
+		if Settings.forks.size > 0
+		forks = Settings.forks.to_i
+		puts "... forking #{forks} times => #{2**forks} instances"
+		forks.times { fork }
 	 
-	end
+		end
 
 	end
 end
 
 main
+

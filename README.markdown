@@ -19,9 +19,21 @@ problem that are known:
 the OPTIONS icap response is not fullty built so squid will show some warnings.
 
 When you are ready, simply `ruby echelon.rb config/settings.yml`
-or to deamonize `ruby echelon.rb config/settings.yml&`
+or to backgroud\deamonize `ruby echelon.rb config/settings.yml&`
 
+added
+--
+i changed the headers manipulation methods and added nice one set302 to allow redirecting filtered requests to specific page.
 
+added the cache module for vimeo,ytimg,youtube.
 
+the youtube cache is not tested yet but the code suppose to work.
 
-  
+added filtering class that has two methods to match blacklists domains of squidguard\danshguardian from a mysql db.
+the checks are done on reverse strings of the domains.
+
+use "load data infile'/location/blacklists/porn/domains' into table filter (@var1) set dom= reverse(@var1);" to load the blacklist into mysql.
+
+TODO
+==
+Add acl to use client ip and user to allow\deny\redirect requests as an acl server for work places.
