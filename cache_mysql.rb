@@ -45,33 +45,12 @@ class Cache
 		end
 	end
 	
-	def ytvid(url)
-		vid = nil;
-		
-		def getid(url)
-			m = url.match(/(id\=[a-zA-Z0-9\-\_]+)/)
-			return m.to_s if m != nil
-		end
-		
-		def getitag(url)
-			m = url.match(/(itag\=[0-9\-\_]+)/)
-			return m.to_s if m != nil
-		end
-		
-		def getrange(url)
-			m = url.match(/(range\=[0-9\-]+)/)
-			return m.to_s if m != nil
-		end
-		
-		def getredirect(url)
-			m = url.match(/(redirect\=)([a-zA-Z0-9\-\_]+)/)
-			return (m.to_s + Time.now.to_i.to_s) if m != nil
-		end
+	def ytvid(url)		
 	
-		id = getid(url)
-		itag = getitag(url)
-		range = getrange(url)
-		redirect = redirect(url)
+		id = getytid(url)
+		itag = getytitag(url)
+		range = getytrange(url)
+		redirect = getytredirect(url)
 		if id == nil
 			return nil
 		else	
@@ -86,11 +65,29 @@ class Cache
 		if redirect != nil
 			vid = vid + "&" + redirect
 		end
-				
-				
+		return vid
 	end
 	
 	private
+		def getytid(url)
+			m = url.match(/(id\=[a-zA-Z0-9\-\_]+)/)
+			return m.to_s if m != nil
+		end
+		
+		def getytitag(url)
+			m = url.match(/(itag\=[0-9\-\_]+)/)
+			return m.to_s if m != nil
+		end
+		
+		def getytrange(url)
+			m = url.match(/(range\=[0-9\-]+)/)
+			return m.to_s if m != nil
+		end
+		
+		def getytredirect(url)
+			m = url.match(/(redirect\=)([a-zA-Z0-9\-\_]+)/)
+			return (m.to_s + Time.now.to_i.to_s) if m != nil
+		end
 	def  commit(q)
 		dbh = Mysql.new(@host, @user, @password , @db,@port, nil, Mysql::CLIENT_MULTI_RESULTS)
 		#dbh=Mysql.init

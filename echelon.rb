@@ -6,23 +6,9 @@
 # - May 25th, 2012
 # ---------------------------------------------------------------------------------------
 require 'rubygems'
-require 'dbi'
-require 'mysql'
-#require 'sqlite3'
-
-
+require 'logger'
 require 'bundler'
-require 'syslog'
-require 'settingslogic'
 Bundler.require(:icap)
-
-
-
-#insert here all the instance variables for the software.
-require './filter.rb'
-require './cache_mysql.rb'
-$domcheck = Filtering.new	
-$cache = Cache.new
 
 # ---------------------------------------------------------------------------------------
 
@@ -45,24 +31,34 @@ class Settings < Settingslogic
     load!
   end
 end
+
+
+#insert here all the instance variables for the software.
+require './filter.rb'
+require './cache_mysql.rb'
+
+$log = Logger.new(Settings.logfile, 'daily')
+$log.level = Logger::DEBUG
+$domcheck = Filtering.new	
+$cache = Cache.new
 # ---------------------------------------------------------------------------------------
+
 class Echelon < EM::Connection
-
-
+@rawdebug = (Settings.rawdebug == 1)
 @debug = (Settings.debug == 1)
 @request = { "Request" =>{}, "Headers" => [] }
 @resp = ""
-
+$log.debug("hello hello log test") if @rawdebug
 
   def post_init
     cleanup
   end
 
   def receive_data(packet)
-	log("packet recived") if @debug
+	$log.debug("packet recived") if @debug
    @data_status = 0
     @data << packet
-	log("recived data: " + @data ) if @debug
+	$log.debug("recived data: " + @data ) if @debug
   	if @icap_header[:data] == "" and pos = (@data =~ /\r\n\r\n/)
       @icap_header[:data] = @data[0..pos+1]
       if @icap_header[:data] =~ /^((OPTIONS|REQMOD|RESPMOD) icap:\/\/([A-Za-z0-9\.\-:]+)([^ ]+) ICAP\/1\.0)\r\n/
@@ -74,30 +70,32 @@ class Echelon < EM::Connection
           @icap_header[:hdr][h[0]] = h[1]
       end
       else
-        log("Error with ICAP header!") if @debug
+        $log.debug("Error with ICAP header!") if @debug
 		# exit 1
 		# puts "Error with ICAP header! Exiting!" ; exit 1
         # TODO: Having problems when this uncommented
       end
-      log(@data) if @debug
+      $log.debug(@data) if @debug
 	  @data = @data[pos+4..@data.size-1]
-	  log(@data) if @debug
+	  $log.debug(@data) if @debug
     end
-	log(@icap_header) if @debug
+	$log.debug(@icap_header) if @debug
 
-	log("Starting case") if @debug 
+	$log.debug("Starting case") if @debug 
     case @icap_header[:mode]
     when 'OPTIONS'
-      log("OPTIONS case")  if @debug 
-      send_data("ICAP/1.0 200 OK\r\nMethods: REQMOD\r\nISTag: \"Echelon-mod-0.1\"\r\nOptions-TTL: 30\r\nMax-Connections: 700\r\nAllow: 204\r\nPreview: 0\r\n\r\n")
+      $log.debug("OPTIONS case")  if @debug 
+      send_data("ICAP/1.0 200 OK\r\nMethods: REQMOD\r\nISTag: \"Echelon-mod-0.1\"\r\nOptions-TTL: 30\r\nMax-Connections: 1000\r\nAllow: 204\r\nPreview: 0\r\n\r\n")
       cleanup
     when 'REQMOD'
-	  log("REQMOD case")  if @debug
+	  $log.debug("REQMOD case") if @rawdebug
+	  $log.debug(@data.to_s) if @rawdebug
 	  orginizedata
-	  log(@request) if @debug
+
+	  $log.debug(@request.to_s) if @debug
 		  case @request["Request"]["Method"]
 			when /(GET|HEAD)/
-			log("method is GET or HEAD") if @debug
+			$log.debug("method is GET or HEAD") if @debug
 			 #newdata =  seturl("http://www.yahoo.com/",request,@request[Headers])
 			 #newdata = ""
 			 
@@ -159,38 +157,51 @@ when (@icap_header[:path].include? "cache")
 
 	end
 
+when  ( @icap_header[:path].include? "ytvideoexternal" )
+	vid = $cache.ytvid(geturl)
+	$log.debug(vid)  if @debug
+    $cache.setvid(geturl, "http://youtube.squid.internal/" + vid) if vid != nil
+	seturl("http://youtube.squid.internal/" + vid) if vid != nil
+	
+	
 when  ( @icap_header[:path].include? "vimeoexternal" )
 	vid = $cache.vimid(geturl)
-	$cache.setvid(geturl, "http://vimeo.squid.internal/" + vid,)
+	$cache.setvid(geturl, "http://vimeo.squid.internal/" + vid)
 	seturl("http://vimeo.squid.internal/" + vid) 
 
 when  ( @icap_header[:path].include? "ytimgexternal" )
 	vid = $cache.ytimg(geturl)
-	$cache.setvid(geturl, "http://ytimg.squid.internal/" + vid,)
+	$cache.setvid(geturl, "http://ytimg.squid.internal/" + vid)
 	seturl("http://ytimg.squid.internal/" + vid)
 
 when  ( @icap_header[:path].include? "vimeointernal" )
-	log("vimeo internal") if @debug
+	$log.debug("vimeo internal") if @debug
 	url = $cache.geturl(geturl)
-	log(url)
+	$log.debug(url)  if @debug
 	seturl(url) if url != nil
 
 when  ( @icap_header[:path].include? "ytimginternal" )
-	log("ytimg internal") if @debug
+	$log.debug("ytimg internal") if @debug
 	url =  $cache.geturl(geturl)
-	log(url)
+	$log.debug(url)  if @debug
+	seturl(url) if url != nil
+
+when  ( @icap_header[:path].include? "ytvideointernal" )
+        $log.debug("ytvideo internal") if @debug
+	url =  $cache.geturl(geturl)
+	$log.debug(url)  if @debug
 	seturl(url) if url != nil
 
 when  ( @icap_header[:path].include? "smpfilter" )
-    log("basic filter check") if @debug
-	log(geturl) if @debug
+        $log.debug("basic filter check") if @debug
+	$log.debug(geturl) if @debug
 	test = $domcheck.bdomain(gethost)
-	log("level is: " + test.to_s)
+	$log.debug("level is: " + test.to_s) if @deubg
  	set302("http://www1.ngtech.co.il/302porn.html") if  test != 0
 	puts $domcheck.domain(gethost) if @debug
 
 when ( @icap_header[:path].include? "redirect" )
-	log("302") if @debug
+	$log.debug("302") if @debug
 	set302("http://www1.ngtech.co.il/302.html")
 else
 
@@ -201,31 +212,31 @@ end
 #####################################################
 			 case
 				when (@data_status  == 1)
-				log("Request was changed") if @debug
-				log(@request) if @debug
+				$log.debug("Request was changed") if @debug
+				$log.debug(@request) if @debug
 				preresp 
-				log(@request) if @debug
+				$log.debug(@request) if @debug
 				send_data(compreq)
 				when (@data_status == 2)
-				log("Request was changed to 302 response") if @debug
-				log(@request) if @debug
+				$log.debug("Request was changed to 302 response") if @debug
+				$log.debug(@request) if @debug
 				send_data(compresp)
 			else
-			  log("GET or HEAD data wasnt modified") if @debug
-			  log ("No Modification for: #{@request}")  if @debug
+			  $log.debug("GET or HEAD data wasnt modified") if @debug
+			  $log.debug("No Modification for: #{@request}")  if @debug
 			  nocontent
 			end
 		else
-		    log("method is not GET") if @debug
-			log(@request["Request"]["Method"]) if @debug
-			log ( "No Modification for: #{@request}")
+		    $log.debug("method is not GET") if @debug
+			$log.debug(@request["Request"]["Method"]) if @debug
+			$log.debug( "No Modification for: #{@request}") if @debug
 			nocontent
 		end
     when 'RESPMOD'
-	  log("RESPMOD case") if @debug
+	  $log.debug("RESPMOD case") if @debug
    	  nocontent
     else
-		log("else/RESPMOD") if @debug
+		$log.debug("else/RESPMOD") if @debug
     end
 	cleanup
   end
@@ -233,11 +244,11 @@ end
   
   def nocontent
     send_data("ICAP/1.0 204 No Content.\r\n\r\n")
-	log("no content 204 sent") if @debug
+	$log.debug("no content 204 sent") if @debug
   end
 
   def cleanup
-	log("starting cleanup") if @debug
+	$log.debug("starting cleanup") if @debug
 	@data_status = 0
     @data        = ""
     @body        = ""
@@ -249,6 +260,8 @@ end
     }
 	@request = { "Request" =>{}, "Headers" => [] }
 	@resp = ""
+	@rawdebug = (Settings.rawdebug == 1)
+    @debug = (Settings.debug == 1)
   end
 
   def orginizedata
@@ -263,11 +276,11 @@ end
   end
    
    def parserequest(req)
-	k = req.scan(/(GET|POST|PUT|HEAD|PURGE)\ (http:\/\/.*)\ (.*)/)[0]
-	log(k) if @debug
+	k = req.scan(/(GET|POST|PUT|HEAD|PURGE|CONNECT)\ (.*)\ (.*)/)[0]
+	$log.debug(k) if @debug
 	h = {"Method" => k[0], "Url" => k[1], "Version"=> k[2]}
-	log(h) if @debug
-	log(h) if @debug
+	$log.debug(h) if @debug
+	$log.debug(h) if @debug
 	return h
   end
   
@@ -282,7 +295,7 @@ end
 	#
 	#  original compose
 	#response = "ICAP/1.0 200 OK\r\nDate: #{Time.now.strftime("%a, %d %b %Y %X %Z")}\r\nServer: RubyICAP\r\nConnection: close\r\nEncapsulated: req-hdr=0, null-body=#{@data.bytesize}\r\n\r\n#{@data}"
-	log("composing icap response") if @debug
+	$log.debug("composing icap response") if @debug
 	return  ("ICAP/1.0 200 OK\r\nDate: #{Time.now.strftime("%a, %d %b %Y %X %Z")}\r\nServer: RubyICAP\r\nEncapsulated: req-hdr=0, null-body=#{@request.bytesize}\r\nConnection: close\r\n\r\n#{@request}")
   end
    
@@ -296,7 +309,7 @@ end
 	#
 	#  original compose
 	#response = "ICAP/1.0 200 OK\r\nDate: #{Time.now.strftime("%a, %d %b %Y %X %Z")}\r\nServer: RubyICAP\r\nConnection: close\r\nEncapsulated: req-hdr=0, null-body=#{@data.bytesize}\r\n\r\n#{@data}"
-	log("composing icap response") if @debug
+	$log.debug("composing icap response") if @debug
 	return  ("ICAP/1.0 200 OK\r\nDate: #{Time.now.strftime("%a, %d %b %Y %X %Z")}\r\nServer: RubyICAP\r\nEncapsulated: res-hdr=0, null-body=#{@request.bytesize}\r\nConnection: close\r\n\r\n#{@request}")
   end
    
@@ -363,20 +376,16 @@ end
 		@request = key
 	  end
 	
-	def parsereq(request)
-		log (request)
-		return request.scan(/(GET|POST|PUT|HEAD)\ (http:\/\/.*)\ (.*)/)[0]
-	end
-	
-		def divideurl(url)
-		log(url)
-			return url.scan(/^(http:\/\/)([0-9a-zA-Z\.\-\_]+)(\/.*)/)[0]
+		def extracthost(url)
+			$log.debug(url) if @debug
+			if url.start_with?("http://") || url.start_with?("ftp://")
+				return url.scan(/(http:\/\/|ftp:\/\/)([\d\w\.\_\-]+)/)[0][1]
+			else
+				scan(/(.*):(.*)/)
+				return url.scan(/(.*):(.*)/)[0][0]
+			end
+			 divideurl(url)[1]
 		end
-	
-	def extracthost(url)
-		log (url)
-		return divideurl(url)[1]
-	end
 	
 	def matcher(regex)
 		if regex.match(@request["Request"]["Url"])
@@ -390,17 +399,13 @@ end
 end
 
 
-
-def log(msg)
-	Syslog.log(Syslog::LOG_ERR, "%s", msg)
-end
-
 def main
-	Syslog.open('Ruby_Icap', Syslog::LOG_PID)
-	log("Started")
+	
+	
+	$log.info("Started")
 
 		Settings.each do |l| 
-		log(l)  
+		$log.info(l)  
 		end
 	puts "== Ruby ICAP Server Started =="
 
@@ -416,5 +421,9 @@ def main
 	end
 end
 
-main
-
+begin
+	main
+rescue => err
+  $log.fatal("Caught exception; exiting")
+  $log.fatal(err)
+end
