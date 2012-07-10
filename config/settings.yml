@@ -1,8 +1,8 @@
-host:       127.0.0.3
+host:       127.0.0.2
 port:       1344
 useragent:  Echelon Proxy 0.1(Elico branch)
 domain:     
 debug:          0
 forks:          0
-sqlitedb: /dev/shm/vid.db
-
+rawdebug:       0
+logfile:        /var/log/icap.log
