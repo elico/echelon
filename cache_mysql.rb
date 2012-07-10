@@ -14,16 +14,15 @@ class Cache
 	@port = 3306
 	end
 	
-	def setvid(url,vid)
-	#REPLACE INTO `temp` (videoId, url) values  (vid,uri);
-	q = "CALL seturl ('" + vid + "', '" + url + "');";
-
+	def setvid(url,vid)	
+	q = "REPLACE INTO temp (videoId, url) values  ('" + vid +"','" + url + "');"
+	#q = "CALL seturl ('" + vid + "', '" + url + "');";
 		commit(q)
 	end
 
 	def geturl(vid)
-	   #SELECT url FROM temp WHERE videoId = _id ;
-	   q = "CALL geturl ('" + vid + "' );"
+	   q= "SELECT url FROM temp WHERE videoId = '"+ vid + "' ;"
+	   #q = "CALL geturl ('" + vid + "' );"
 		return commit(q) 
 	end
 	
