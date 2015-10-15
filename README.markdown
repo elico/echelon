@@ -1,3 +1,9 @@
+Echelon obelete
+===========
+Echelon is now only here for example and historical refrence.
+I have written a DB and an ICAP service in golang which replaces echelon and the ICAP service can be found at: https://github.com/elico/squidblocker-icap-server .
+The DB engine is not open source yet.
+
 echelon
 ===========
 originaly from:
