@@ -85,7 +85,7 @@ $log.debug("hello hello log test") if @rawdebug
     case @icap_header[:mode]
     when 'OPTIONS'
       $log.debug("OPTIONS case")  if @debug 
-      send_data("ICAP/1.0 200 OK\r\nMethods: REQMOD\r\nISTag: \"Echelon-mod-0.1\"\r\nOptions-TTL: 30\r\nMax-Connections: 1000\r\nAllow: 204\r\nPreview: 0\r\n\r\n")
+      send_data("ICAP/1.0 200 OK\r\nMethods: REQMOD\r\nISTag: \"Echelon-mod-0.1\"\r\nOptions-TTL: 30\r\nMax-Connections: 1000\r\nAllow: 204\r\nPreview: 0\r\nTransfer-Preview: *\r\n\r\n")
       cleanup
     when 'REQMOD'
 	  $log.debug("REQMOD case") if @rawdebug
